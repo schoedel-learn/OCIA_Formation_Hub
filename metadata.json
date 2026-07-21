@@ -1,0 +1,6 @@
+{
+  "name": "OCIA Community & Formation Hub",
+  "description": "A premium community, discussion, and formation platform modeled after Circle.so for OCIA participants, catechists, and leaders featuring a smart chatbot, course formations, chat, and postings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

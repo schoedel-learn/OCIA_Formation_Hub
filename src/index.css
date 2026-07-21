@@ -1,0 +1,148 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Liturgical Dynamic Theme Colors */
+  --color-brand: var(--liturgical-brand);
+  --color-brand-hover: var(--liturgical-brand-hover);
+  --color-brand-light: var(--liturgical-brand-light);
+  --color-brand-dark: var(--liturgical-brand-dark);
+  
+  --color-accent: var(--liturgical-accent);
+  --color-accent-hover: var(--liturgical-accent-hover);
+  --color-accent-light: var(--liturgical-accent-light);
+}
+
+:root {
+  /* Default Season: Lent / Violet & Gold */
+  --liturgical-brand: #6366f1; /* Deep Violet/Indigo */
+  --liturgical-brand-hover: #4f46e5;
+  --liturgical-brand-light: #f5f3ff;
+  --liturgical-brand-dark: #3730a3;
+  --liturgical-accent: #b45309; /* Liturgical Gold */
+  --liturgical-accent-hover: #92400e;
+  --liturgical-accent-light: #fffbeb;
+}
+
+/* Season: Lent / Advent - Purple & Gold */
+.season-lent {
+  --liturgical-brand: #7c3aed; /* Liturgical Violet */
+  --liturgical-brand-hover: #6d28d9;
+  --liturgical-brand-light: #f5f3ff;
+  --liturgical-brand-dark: #4c1d95;
+  --liturgical-accent: #d97706; /* Liturgical Gold */
+  --liturgical-accent-hover: #b45309;
+  --liturgical-accent-light: #fef3c7;
+}
+
+/* Season: Ordinary Time - Green & Gold */
+.season-ordinary {
+  --liturgical-brand: #059669; /* Liturgical Green */
+  --liturgical-brand-hover: #047857;
+  --liturgical-brand-light: #ecfdf5;
+  --liturgical-brand-dark: #064e3b;
+  --liturgical-accent: #b45309; /* Liturgical Gold */
+  --liturgical-accent-hover: #92400e;
+  --liturgical-accent-light: #fffbeb;
+}
+
+/* Season: Eastertide - Gold & White */
+.season-easter {
+  --liturgical-brand: #d97706; /* Liturgical Gold */
+  --liturgical-brand-hover: #b45309;
+  --liturgical-brand-light: #fffbeb;
+  --liturgical-brand-dark: #78350f;
+  --liturgical-accent: #7c3aed; /* Accent Violet */
+  --liturgical-accent-hover: #6d28d9;
+  --liturgical-accent-light: #f5f3ff;
+}
+
+/* Season: Pentecost - Crimson Red & Charcoal */
+.season-pentecost {
+  --liturgical-brand: #dc2626; /* Crimson Red */
+  --liturgical-brand-hover: #b91c1c;
+  --liturgical-brand-light: #fef2f2;
+  --liturgical-brand-dark: #7f1d1d;
+  --liturgical-accent: #d97706; /* Liturgical Gold */
+  --liturgical-accent-hover: #b45309;
+  --liturgical-accent-light: #fef3c7;
+}
+
+/* Dark Mode Overrides */
+.dark {
+  --liturgical-brand: #a78bfa;
+  --liturgical-brand-hover: #c4b5fd;
+  --liturgical-brand-light: rgba(139, 92, 246, 0.15);
+  --liturgical-brand-dark: #ede9fe;
+  --liturgical-accent: #fbbf24;
+  --liturgical-accent-hover: #fcd34d;
+  --liturgical-accent-light: rgba(245, 158, 11, 0.15);
+}
+
+.dark.season-lent {
+  --liturgical-brand: #a78bfa;
+  --liturgical-brand-hover: #c4b5fd;
+  --liturgical-brand-light: rgba(139, 92, 246, 0.15);
+  --liturgical-brand-dark: #ede9fe;
+  --liturgical-accent: #fbbf24;
+  --liturgical-accent-hover: #fcd34d;
+  --liturgical-accent-light: rgba(245, 158, 11, 0.15);
+}
+
+.dark.season-ordinary {
+  --liturgical-brand: #34d399;
+  --liturgical-brand-hover: #6ee7b7;
+  --liturgical-brand-light: rgba(5, 150, 105, 0.15);
+  --liturgical-brand-dark: #ecfdf5;
+  --liturgical-accent: #fbbf24;
+  --liturgical-accent-hover: #fcd34d;
+  --liturgical-accent-light: rgba(245, 158, 11, 0.15);
+}
+
+.dark.season-easter {
+  --liturgical-brand: #fbbf24;
+  --liturgical-brand-hover: #fcd34d;
+  --liturgical-brand-light: rgba(217, 119, 6, 0.15);
+  --liturgical-brand-dark: #fffbeb;
+  --liturgical-accent: #a78bfa;
+  --liturgical-accent-hover: #c4b5fd;
+  --liturgical-accent-light: rgba(139, 92, 246, 0.15);
+}
+
+.dark.season-pentecost {
+  --liturgical-brand: #f87171;
+  --liturgical-brand-hover: #fca5a5;
+  --liturgical-brand-light: rgba(220, 38, 38, 0.15);
+  --liturgical-brand-dark: #fef2f2;
+  --liturgical-accent: #fbbf24;
+  --liturgical-accent-hover: #fcd34d;
+  --liturgical-accent-light: rgba(245, 158, 11, 0.15);
+}
+
+@layer base {
+  body {
+    @apply font-sans antialiased bg-zinc-50 text-zinc-900 transition-colors duration-200;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
