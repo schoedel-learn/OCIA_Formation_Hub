@@ -1,4 +1,5 @@
 export type UserRole =
+  | "OCIA Director/Coordinator"
   | "catechist"
   | "parish leader"
   | "liturgist"
@@ -17,6 +18,26 @@ export type UserRole =
   | "lay minister"
   | "candidate"
   | "leader";
+
+export const isOciaDirector = (role?: string): boolean => {
+  if (!role) return false;
+  const r = role.toLowerCase();
+  return r === "ocia director/coordinator" || r === "parish leader" || r === "leader";
+};
+
+export const isOciaLeader = (role?: string): boolean => {
+  if (!role) return false;
+  const r = role.toLowerCase();
+  return (
+    r === "ocia director/coordinator" ||
+    r === "parish leader" ||
+    r === "leader" ||
+    r === "priest" ||
+    r === "deacon" ||
+    r === "bishop" ||
+    r === "catechist"
+  );
+};
 
 export interface UserPermissions {
   canCreateResources: boolean;
@@ -119,6 +140,32 @@ export interface ResourceItem {
   category: "liturgy" | "doctrine" | "catechism" | "scripture" | "prayer";
   url: string;
   downloadCount: number;
+}
+
+export interface OciaRegistrationRecord {
+  id: string;
+  userId: string;
+  fullName: string;
+  preferredName?: string;
+  email: string;
+  phone: string;
+  address: string;
+  dateOfBirth: string;
+  track: "seeker" | "catechumen" | "candidate" | "sponsor" | "catechist" | "inquirer";
+  baptismStatus: "unbaptized" | "baptized_catholic" | "baptized_non_catholic" | "unknown";
+  baptismChurchDetails?: string;
+  firstEucharistReceived?: boolean;
+  confirmationReceived?: boolean;
+  maritalStatus: "single" | "married_catholic" | "married_civil" | "divorced" | "widowed" | "engaged";
+  sponsorName?: string;
+  sponsorEmail?: string;
+  sponsorPhone?: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  dietaryOrSpecialNeeds?: string;
+  registrationDate: string;
+  status: "pending" | "approved" | "archived";
+  notes?: string;
 }
 
 export interface PollOption {

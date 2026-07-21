@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Award, Flame, BookOpen, Star, Calendar, Bookmark, CreditCard, ShieldAlert, Check, Loader, Moon, Sun, BellRing, ChevronRight } from "lucide-react";
-import { UserProfile } from "../types";
+import { Award, Flame, BookOpen, Star, Calendar, Bookmark, CreditCard, ShieldAlert, Check, Loader, Moon, Sun, BellRing, ChevronRight, UserCheck, KeyRound, ShieldCheck } from "lucide-react";
+import { UserProfile, UserRole } from "../types";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface UserStatsDashboardProps {
@@ -19,6 +19,45 @@ export default function UserStatsDashboard({ user, setUser, addPoints, isDarkMod
   const [cardCvc, setCardCvc] = useState("");
   const [checkoutStep, setCheckoutStep] = useState<"pricing" | "checkout" | "success">("pricing");
   const [stripeMessage, setStripeMessage] = useState("");
+
+  // Profile & Role Management States
+  const [selectedRole, setSelectedRole] = useState<UserRole>(user.role);
+  const [rolePasscode, setRolePasscode] = useState("");
+  const [roleError, setRoleError] = useState("");
+  const [roleSuccess, setRoleSuccess] = useState("");
+
+  const handleUpdateRole = (e: React.FormEvent) => {
+    e.preventDefault();
+    setRoleError("");
+    setRoleSuccess("");
+
+    const isTargetingLeader = selectedRole === "OCIA Director/Coordinator" || selectedRole === "parish leader" || selectedRole === "leader";
+    const isCurrentlyLeader = user.role === "OCIA Director/Coordinator" || user.role === "parish leader" || user.role === "leader";
+
+    if (isTargetingLeader && !isCurrentlyLeader) {
+      if (rolePasscode.trim() !== "OCIA2026") {
+        setRoleError("Invalid Leader Passcode. Please enter 'OCIA2026' to gain Director/Coordinator access.");
+        return;
+      }
+    }
+
+    const updatedUser: UserProfile = {
+      ...user,
+      role: selectedRole,
+      permissions: isTargetingLeader ? {
+        canCreateResources: true,
+        canCreateEvents: true,
+        canManagePermissions: true,
+        isAdmin: true,
+        canModerateForum: true
+      } : user.permissions
+    };
+
+    setUser(updatedUser);
+    localStorage.setItem("ocia_user", JSON.stringify(updatedUser));
+    setRoleSuccess(`Role updated to ${selectedRole}!`);
+    setRolePasscode("");
+  };
 
   const weeklyData = [
     { name: "Mon", points: 80 },
@@ -259,6 +298,83 @@ export default function UserStatsDashboard({ user, setUser, addPoints, isDarkMod
                 </button>
               </div>
             )}
+          </div>
+
+          {/* Role & Access Management Panel */}
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-xs space-y-3">
+            <div className="flex items-center space-x-2 border-b border-zinc-100 dark:border-zinc-800/80 pb-2">
+              <UserCheck className="w-4 h-4 text-brand shrink-0" />
+              <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider font-serif">Parish Role & Identity</h4>
+            </div>
+
+            <form onSubmit={handleUpdateRole} className="space-y-3 text-left">
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wide mb-1">Current Role</label>
+                <select
+                  value={selectedRole}
+                  onChange={e => {
+                    setSelectedRole(e.target.value as UserRole);
+                    setRoleError("");
+                    setRoleSuccess("");
+                  }}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg py-2 px-3 text-xs font-medium focus:outline-none"
+                >
+                  <option value="OCIA Director/Coordinator">OCIA Director/Coordinator</option>
+                  <option value="priest">Priest</option>
+                  <option value="deacon">Deacon</option>
+                  <option value="bishop">Bishop</option>
+                  <option value="catechist">Catechist / Sponsor</option>
+                  <option value="candidate">Candidate (Baptized)</option>
+                  <option value="catechumen">Catechumen (Unbaptized)</option>
+                  <option value="elect">Elect</option>
+                  <option value="neophyte">Neophyte</option>
+                  <option value="seeker">Seeker / Inquirer</option>
+                  <option value="disciple">Disciple</option>
+                  <option value="evangelist">Evangelist</option>
+                  <option value="liturgist">Liturgist</option>
+                  <option value="musician">Musician</option>
+                  <option value="lay minister">Lay Minister</option>
+                  <option value="sister">Sister</option>
+                  <option value="brother">Brother</option>
+                </select>
+              </div>
+
+              {(selectedRole === "OCIA Director/Coordinator" || selectedRole === "parish leader" || selectedRole === "leader") && user.role !== selectedRole && (
+                <div className="space-y-1.5 animate-fadeIn">
+                  <label className="block text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide flex items-center gap-1">
+                    <KeyRound className="w-3 h-3" /> Director Passcode Required
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Enter OCIA2026"
+                    value={rolePasscode}
+                    onChange={e => setRolePasscode(e.target.value)}
+                    className="w-full bg-amber-50/50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-lg py-2 px-3 text-xs text-amber-950 dark:text-amber-100 focus:outline-none"
+                    required
+                  />
+                  <p className="text-[10px] text-zinc-400">Default parish passcode: <code className="font-mono font-bold text-amber-700 dark:text-amber-300">OCIA2026</code></p>
+                </div>
+              )}
+
+              {roleError && (
+                <p className="text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 p-2 rounded border border-red-200 dark:border-red-800">
+                  {roleError}
+                </p>
+              )}
+
+              {roleSuccess && (
+                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 p-2 rounded border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" /> {roleSuccess}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-2 bg-brand hover:bg-brand-hover text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-2xs"
+              >
+                Update Role Credentials
+              </button>
+            </form>
           </div>
 
           {/* Quick Settings Panel */}

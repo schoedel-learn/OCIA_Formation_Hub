@@ -9,6 +9,20 @@ provider.addScope("https://www.googleapis.com/auth/presentations.readonly");
 provider.addScope("https://www.googleapis.com/auth/drive");
 provider.addScope("https://www.googleapis.com/auth/drive.file");
 provider.addScope("https://www.googleapis.com/auth/drive.readonly");
+provider.addScope("https://www.googleapis.com/auth/drive.metadata.readonly");
+provider.addScope("https://www.googleapis.com/auth/calendar");
+provider.addScope("https://www.googleapis.com/auth/calendar.events");
+provider.addScope("https://www.googleapis.com/auth/meetings.space.created");
+provider.addScope("https://www.googleapis.com/auth/meetings.space.readonly");
+provider.addScope("https://www.googleapis.com/auth/meetings.space.settings");
+
+// Add Classroom scopes
+provider.addScope("https://www.googleapis.com/auth/classroom.courses.readonly");
+provider.addScope("https://www.googleapis.com/auth/classroom.coursework.me");
+provider.addScope("https://www.googleapis.com/auth/classroom.coursework.students.readonly");
+provider.addScope("https://www.googleapis.com/auth/classroom.announcements.readonly");
+provider.addScope("https://www.googleapis.com/auth/classroom.rosters.readonly");
+provider.addScope("https://www.googleapis.com/auth/classroom.topics.readonly");
 
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;

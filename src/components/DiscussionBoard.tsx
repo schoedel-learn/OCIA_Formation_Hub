@@ -52,6 +52,7 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
 
   const getRoleBadgeColor = (role: UserRole) => {
     switch (role) {
+      case "OCIA Director/Coordinator":
       case "priest":
       case "deacon":
       case "bishop":
@@ -245,7 +246,7 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
     setIsEditingPost(false);
   };
 
-  const isLeader = ["leader", "parish leader", "priest", "deacon", "bishop", "catechist"].includes(user.role);
+  const isLeader = ["OCIA Director/Coordinator", "leader", "parish leader", "priest", "deacon", "bishop", "catechist"].includes(user.role);
 
   const handleCreatePoll = (e: React.FormEvent) => {
     e.preventDefault();

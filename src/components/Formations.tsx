@@ -149,7 +149,7 @@ export default function Formations({ user, completeLesson, addPoints }: Formatio
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-xs">
           <div className="flex items-center justify-between mb-3 pb-2 border-b border-zinc-100 dark:border-zinc-800/60">
             <h3 className="font-serif font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 text-base">
-              <Award className="w-5 h-5 text-amber-600 dark:text-amber-400" /> Formation Path
+              <Award className="w-5 h-5 text-amber-600 dark:text-amber-400" /> Catechumenal Path
             </h3>
             {user.permissions?.canCreateResources && (
               <button
@@ -489,7 +489,7 @@ export default function Formations({ user, completeLesson, addPoints }: Formatio
               </div>
               <div>
                 <h4 className="font-serif font-bold text-zinc-900 dark:text-zinc-50 text-base leading-tight">Create Syllabus Resource</h4>
-                <p className="text-[10px] text-zinc-400">Add supplemental catechism studies, liturgical readings or lessons to the Discipleship & Faith path</p>
+                <p className="text-[10px] text-zinc-400">Add supplemental catechism studies, liturgical readings or lessons to the Catechumenal Path</p>
               </div>
             </div>
 

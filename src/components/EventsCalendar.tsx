@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, Clock, MapPin, Users, Check, AlertCircle, Plus, ChevronRight, RefreshCw, Star, BookOpen, X } from "lucide-react";
+import { 
+  Calendar as CalendarIcon, Clock, MapPin, Users, Check, AlertCircle, Plus, 
+  ChevronRight, RefreshCw, Star, BookOpen, X, LogIn, LogOut, CalendarDays, 
+  CheckCircle, HelpCircle, ExternalLink 
+} from "lucide-react";
 import { EventItem, UserProfile } from "../types";
+import { getAccessToken, googleSignIn, googleLogout } from "../utils/googleAuth";
 
 interface EventsCalendarProps {
   user: UserProfile;
@@ -9,10 +14,69 @@ interface EventsCalendarProps {
   addPoints: (amount: number) => void;
 }
 
+// Robust Google Calendar Event Time Range Parser helper
+function parseEventTimeRange(date: string, timeStr: string) {
+  const defaultZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  
+  const parseTime = (timePart: string): { hours: number, minutes: number } => {
+    const clean = timePart.trim().toUpperCase();
+    const match = clean.match(/(\d+):(\d+)\s*(AM|PM)/) || clean.match(/(\d+)\s*(AM|PM)/);
+    if (!match) return { hours: 12, minutes: 0 };
+    
+    let hours = parseInt(match[1]);
+    const minutes = match[2] && !isNaN(parseInt(match[2])) ? parseInt(match[2]) : 0;
+    const ampm = match[3] || match[2];
+    
+    if (ampm === "PM" && hours < 12) hours += 12;
+    if (ampm === "AM" && hours === 12) hours = 0;
+    
+    return { hours, minutes };
+  };
+
+  const parts = timeStr.split("-");
+  const startPart = parts[0];
+  const endPart = parts[1] || parts[0];
+
+  const startT = parseTime(startPart);
+  const endT = parseTime(endPart);
+
+  const startDate = new Date(date + "T00:00:00");
+  startDate.setHours(startT.hours, startT.minutes);
+
+  const endDate = new Date(date + "T00:00:00");
+  endDate.setHours(endT.hours, endT.minutes);
+  
+  if (endDate.getTime() <= startDate.getTime()) {
+    endDate.setHours(startDate.getHours() + 1);
+  }
+
+  return {
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+    timeZone: defaultZone
+  };
+}
+
 export default function EventsCalendar({ user, events, setEvents, addPoints }: EventsCalendarProps) {
   const [activeFilter, setActiveFilter] = useState<"all" | "liturgy" | "catechesis" | "fellowship" | "retreat">("all");
   const [countdown, setCountdown] = useState("");
   
+  // Google Calendar Integration State
+  const [gcalToken, setGcalToken] = useState<string | null>(getAccessToken());
+  const [gcalEvents, setGcalEvents] = useState<any[]>([]);
+  const [gcalLoading, setGcalLoading] = useState(false);
+  const [gcalError, setGcalError] = useState<string | null>(null);
+  const [pushingEventId, setPushingEventId] = useState<string | null>(null);
+  const [postToGoogle, setPostToGoogle] = useState(false);
+  const [pushedEventIds, setPushedEventIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("pushed_gcal_events");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Custom Event Creation States
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -155,6 +219,122 @@ export default function EventsCalendar({ user, events, setEvents, addPoints }: E
     return () => clearInterval(interval);
   }, [events]);
 
+  // Fetch up to 10 upcoming events from Google Calendar
+  const fetchGoogleCalendarEvents = async (accessToken: string) => {
+    setGcalLoading(true);
+    setGcalError(null);
+    try {
+      const nowStr = new Date().toISOString();
+      const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(nowStr)}&maxResults=10&orderBy=startTime&singleEvents=true`;
+      
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          setGcalToken(null);
+          throw new Error("Your session has expired. Please sign in to Google Calendar again.");
+        }
+        const errObj = await res.json();
+        throw new Error(errObj?.error?.message || "Failed to retrieve calendar events.");
+      }
+
+      const data = await res.json();
+      setGcalEvents(data.items || []);
+    } catch (err: any) {
+      console.error("GCal fetch error:", err);
+      setGcalError(err.message || "An error occurred fetching your Google Calendar events.");
+    } finally {
+      setGcalLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const currentToken = getAccessToken();
+    setGcalToken(currentToken);
+    if (currentToken) {
+      fetchGoogleCalendarEvents(currentToken);
+    }
+  }, []);
+
+  const handleGcalLogin = async () => {
+    try {
+      setGcalError(null);
+      const result = await googleSignIn();
+      if (result) {
+        setGcalToken(result.accessToken);
+        addPoints(15);
+        fetchGoogleCalendarEvents(result.accessToken);
+      }
+    } catch (err: any) {
+      setGcalError("Failed to authenticate with Google Calendar. Please try again.");
+    }
+  };
+
+  const handleGcalLogout = async () => {
+    await googleLogout();
+    setGcalToken(null);
+    setGcalEvents([]);
+  };
+
+  const addEventToGoogleCalendar = async (event: EventItem) => {
+    if (!gcalToken) {
+      setGcalError("Please connect your Google Calendar account first.");
+      return;
+    }
+
+    setPushingEventId(event.id);
+    setGcalError(null);
+
+    try {
+      const times = parseEventTimeRange(event.date, event.time);
+      
+      const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${gcalToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          summary: `⛪ [OCIA] ${event.title}`,
+          description: `${event.description}\n\nOrganized by the Parish Catholic OCIA Community.`,
+          location: event.location,
+          start: {
+            dateTime: times.start,
+            timeZone: times.timeZone
+          },
+          end: {
+            dateTime: times.end,
+            timeZone: times.timeZone
+          },
+          reminders: {
+            useDefault: true
+          }
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData?.error?.message || "Failed to create event on Google Calendar.");
+      }
+
+      setPushedEventIds(prev => {
+        const next = [...prev, event.id];
+        localStorage.setItem("pushed_gcal_events", JSON.stringify(next));
+        return next;
+      });
+
+      addPoints(25); // Spiritual task reward!
+      fetchGoogleCalendarEvents(gcalToken);
+    } catch (err: any) {
+      console.error(err);
+      setGcalError(err.message || "Could not push event to Google Calendar.");
+    } finally {
+      setPushingEventId(null);
+    }
+  };
+
   const handleRSVP = (eventId: string) => {
     setEvents(prev => prev.map(e => {
       if (e.id === eventId) {
@@ -256,6 +436,11 @@ export default function EventsCalendar({ user, events, setEvents, addPoints }: E
     localStorage.setItem("ocia_events", JSON.stringify(updated));
     addPoints(50); // XP Reward for creating parish events!
 
+    // Automatically push to Google Calendar if selected
+    if (postToGoogle && gcalToken) {
+      addEventToGoogleCalendar(newEvent);
+    }
+
     // Reset
     setNewTitle("");
     setNewDescription("");
@@ -263,6 +448,7 @@ export default function EventsCalendar({ user, events, setEvents, addPoints }: E
     setNewTime("");
     setNewLocation("");
     setNewType("catechesis");
+    setPostToGoogle(false);
     setShowCreateModal(false);
 
     alert("Event created and published to the parish calendar successfully!");
@@ -289,6 +475,116 @@ export default function EventsCalendar({ user, events, setEvents, addPoints }: E
           Parish Calendar
         </span>
       </div>
+
+      {/* Google Calendar Sync Integration Banner */}
+      <div className="bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-900/40 dark:to-zinc-950/20 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center border border-amber-200/40 shrink-0">
+            <CalendarDays className="w-5 h-5 text-amber-700 dark:text-amber-500" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-serif font-bold text-sm text-zinc-900 dark:text-zinc-50 flex items-center gap-1.5">
+              Google Calendar Personal Sync
+            </h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-normal max-w-xl font-sans">
+              Connect your Google Calendar to seamlessly sync parish liturgies, retreats, and study formations. You can push parish gatherings straight to your schedule, or view your upcoming personal events.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+          {!gcalToken ? (
+            <button
+              onClick={handleGcalLogin}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-700 hover:bg-amber-850 text-white text-xs font-bold rounded-lg cursor-pointer shadow-sm transition"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              Sign in to Calendar
+            </button>
+          ) : (
+            <div className="flex flex-col md:flex-row items-end md:items-center gap-2.5">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">Calendar Synced</span>
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => fetchGoogleCalendarEvents(gcalToken)}
+                  disabled={gcalLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-850 text-zinc-600 dark:text-zinc-300 text-xs font-bold rounded-lg cursor-pointer transition"
+                >
+                  <RefreshCw className={`w-3 h-3 ${gcalLoading ? "animate-spin" : ""}`} />
+                  Refresh Feed
+                </button>
+                <button
+                  onClick={handleGcalLogout}
+                  className="p-1.5 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/55 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition cursor-pointer"
+                  title="Disconnect Calendar"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {gcalError && (
+        <div className="flex items-start gap-2.5 p-3.5 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/50 rounded-xl text-red-800 dark:text-red-400 text-xs animate-fadeIn">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="flex-1">{gcalError}</span>
+          <button onClick={() => setGcalError(null)} className="text-red-400 hover:text-red-600 text-xs font-bold font-mono">Dismiss</button>
+        </div>
+      )}
+
+      {/* Google Calendar Feed List */}
+      {gcalToken && gcalEvents.length > 0 && (
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-4 border-b border-zinc-50 dark:border-zinc-800/80 pb-2.5">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-amber-700 dark:text-amber-500 animate-pulse" />
+              <h3 className="font-serif font-bold text-xs text-zinc-850 dark:text-zinc-200">
+                Your Synced Google Calendar Feed (Upcoming 10)
+              </h3>
+            </div>
+            <span className="text-[9px] font-mono bg-zinc-100 dark:bg-zinc-800 text-zinc-500 px-2.5 py-0.5 rounded-full">
+              Primary Calendar
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {gcalEvents.map((gEvt: any) => {
+              const startDateTime = gEvt.start?.dateTime || gEvt.start?.date;
+              const formattedDate = startDateTime ? new Date(startDateTime).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "All Day";
+              const formattedTime = gEvt.start?.dateTime ? new Date(startDateTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "All Day";
+
+              return (
+                <div key={gEvt.id} className="bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-100 dark:border-zinc-800/60 p-3.5 rounded-lg flex flex-col justify-between hover:border-amber-300 dark:hover:border-amber-900/60 transition duration-150">
+                  <div>
+                    <h4 className="font-semibold text-xs text-zinc-800 dark:text-zinc-200 line-clamp-1" title={gEvt.summary}>
+                      {gEvt.summary || "Untitled Event"}
+                    </h4>
+                    {gEvt.location && (
+                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-zinc-400 shrink-0" />
+                        <span className="line-clamp-1">{gEvt.location}</span>
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center justify-between mt-3.5 border-t border-zinc-100/40 dark:border-zinc-800/40 pt-2 text-[10px] text-zinc-400 font-mono">
+                    <span className="flex items-center gap-1">
+                      <CalendarIcon className="w-3 h-3 text-zinc-400" />
+                      {formattedDate}
+                    </span>
+                    <span>{formattedTime}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Liturgical Year Explorer Card */}
       <div className={`p-5 rounded-xl border transition-all duration-200 ${colorStyles.bg} ${colorStyles.border}`}>
@@ -591,17 +887,41 @@ export default function EventsCalendar({ user, events, setEvents, addPoints }: E
                     <span>{event.attendees.length} RSVPs</span>
                   </div>
 
-                  <button
-                    onClick={() => handleRSVP(event.id)}
-                    className={`text-xs font-semibold py-1.5 px-4 rounded-lg border transition duration-200 flex items-center gap-1 cursor-pointer ${
-                      isAttending
-                        ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-400"
-                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                    }`}
-                  >
-                    {isAttending ? <Check className="w-3.5 h-3.5" /> : null}
-                    <span>{isAttending ? "RSVP'd" : "RSVP"}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {gcalToken && (
+                      <button
+                        onClick={() => addEventToGoogleCalendar(event)}
+                        disabled={pushingEventId === event.id}
+                        className={`text-xs font-semibold py-1.5 px-3 rounded-lg border transition duration-200 flex items-center gap-1 cursor-pointer ${
+                          pushedEventIds.includes(event.id)
+                            ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200/40 text-amber-700 dark:text-amber-400"
+                            : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-850 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-750 text-zinc-600 dark:text-zinc-300"
+                        }`}
+                        title={pushedEventIds.includes(event.id) ? "Synced with Google Calendar" : "Sync with Google Calendar"}
+                      >
+                        {pushingEventId === event.id ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : pushedEventIds.includes(event.id) ? (
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                        ) : (
+                          <CalendarIcon className="w-3.5 h-3.5 text-amber-700 dark:text-amber-500" />
+                        )}
+                        <span>{pushedEventIds.includes(event.id) ? "Synced" : "Sync"}</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => handleRSVP(event.id)}
+                      className={`text-xs font-semibold py-1.5 px-4 rounded-lg border transition duration-200 flex items-center gap-1 cursor-pointer ${
+                        isAttending
+                          ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-400"
+                          : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      }`}
+                    >
+                      {isAttending ? <Check className="w-3.5 h-3.5" /> : null}
+                      <span>{isAttending ? "RSVP'd" : "RSVP"}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -704,6 +1024,21 @@ export default function EventsCalendar({ user, events, setEvents, addPoints }: E
                   </select>
                 </div>
               </div>
+
+              {gcalToken && (
+                <div className="flex items-center gap-2 py-1.5 bg-amber-50/50 dark:bg-amber-950/15 p-3 rounded-lg border border-amber-200/30">
+                  <input
+                    id="post-to-google-checkbox"
+                    type="checkbox"
+                    checked={postToGoogle}
+                    onChange={(e) => setPostToGoogle(e.target.checked)}
+                    className="w-3.5 h-3.5 text-amber-700 bg-zinc-100 border-zinc-300 rounded-sm focus:ring-amber-500 cursor-pointer"
+                  />
+                  <label htmlFor="post-to-google-checkbox" className="text-[11px] font-semibold text-amber-900 dark:text-amber-400 cursor-pointer select-none">
+                    Automatically publish to my personal Google Calendar
+                  </label>
+                </div>
+              )}
 
               <div className="flex justify-end space-x-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/80">
                 <button

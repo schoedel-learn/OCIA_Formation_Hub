@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with experience points (Faith points), active status, and preferences.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier matching request.auth.uid" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string" },
+        "streak": { "type": "integer" },
+        "lastActive": { "type": "string" },
+        "points": { "type": "integer" },
+        "completedLessons": { "type": "array" },
+        "subscriptionStatus": { "type": "string" },
+        "avatar": { "type": "string" },
+        "notificationsEnabled": { "type": "boolean" },
+        "savedResources": { "type": "array" }
+      },
+      "required": ["id", "name", "email", "role", "points"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Real-time chat messages sent in discussion rooms.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderAvatar": { "type": "string" },
+        "text": { "type": "string", "maxLength": 10000 },
+        "timestamp": { "type": "string" },
+        "room": { "type": "string" },
+        "type": { "type": "string" }
+      },
+      "required": ["id", "senderId", "senderName", "text", "timestamp", "room"]
+    },
+    "MeetSpace": {
+      "title": "MeetSpace",
+      "description": "Virtual classroom spaces created through Google Meet.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 100 },
+        "meetingUri": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "creatorAvatar": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "meetingUri", "creatorId", "creatorName", "createdAt"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Discussion forum posts.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorRole": { "type": "string" },
+        "authorAvatar": { "type": "string" },
+        "likes": { "type": "array" },
+        "comments": { "type": "array" },
+        "timestamp": { "type": "string" },
+        "isPinned": { "type": "boolean" },
+        "attachments": { "type": "array" }
+      },
+      "required": ["id", "title", "content", "category", "authorId", "authorName", "timestamp"]
+    },
+    "Poll": {
+      "title": "Poll",
+      "description": "Active community poll for cohort seekers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "question": { "type": "string", "maxLength": 500 },
+        "options": { "type": "array" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorRole": { "type": "string" },
+        "authorAvatar": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "expiresAt": { "type": "string" }
+      },
+      "required": ["id", "question", "options", "authorId", "authorName", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/user_profiles/{userId}": {
+      "schema": "UserProfile",
+      "description": "Collection of all user profiles in the portal, keyed by their auth ID."
+    },
+    "/chat_messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Global list of real-time chat messages categorized by room channels."
+    },
+    "/meet_spaces/{spaceId}": {
+      "schema": "MeetSpace",
+      "description": "Virtual classrooms that list Google Meet rooms."
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Discussion board forum posts."
+    },
+    "/polls/{pollId}": {
+      "schema": "Poll",
+      "description": "Active poll questions and options with votes."
+    }
+  }
+}
