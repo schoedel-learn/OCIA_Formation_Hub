@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import MarkdownRenderer from "./MarkdownRenderer";
-import { MessageSquare, Heart, Pin, Share2, Plus, ArrowLeft, Send, Check, Link, Globe, BarChart2, Trash2, Edit2, CheckCircle2, Clock, Paperclip, Video, FileText, X, Loader2 } from "lucide-react";
-import { Post, UserProfile, Comment, UserRole, Poll, PollOption, Attachment } from "../types";
+import { MessageSquare, Heart, Pin, Share2, Plus, ArrowLeft, Send, Check, Link, Globe, BarChart2, Trash2, Edit2, CheckCircle2, Clock, Paperclip, Video, FileText, X, Loader2, ChevronDown, ChevronUp, ShieldAlert, Ban, ShieldCheck, Flag, AlertCircle } from "lucide-react";
+import { Post, UserProfile, Comment, UserRole, Poll, PollOption, Attachment, AppConfig, isSuperAdmin } from "../types";
+import { checkContentModeration, isUserBanned } from "../lib/moderation";
 import URLPreview from "./URLPreview";
 
 interface DiscussionBoardProps {
@@ -11,17 +12,99 @@ interface DiscussionBoardProps {
   polls: Poll[];
   setPolls: (polls: Poll[]) => void;
   addPoints: (amount: number) => void;
+  liturgicalSeason?: "lent" | "ordinary" | "easter" | "pentecost";
+  config?: AppConfig;
+  setConfig?: (config: AppConfig) => void;
+  allUsers?: UserProfile[];
+  setAllUsers?: (users: UserProfile[]) => void;
 }
 
-export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls, addPoints }: DiscussionBoardProps) {
+export default function DiscussionBoard({
+  user,
+  posts,
+  setPosts,
+  polls,
+  setPolls,
+  addPoints,
+  liturgicalSeason = "lent",
+  config,
+  setConfig,
+  allUsers = [],
+  setAllUsers
+}: DiscussionBoardProps) {
+  const userIsSuperAdmin = isSuperAdmin(user);
+  const banStatus = isUserBanned(user, config);
+
+  const [moderationError, setModerationError] = useState<string | null>(null);
+  const [banningUserModal, setBanningUserModal] = useState<{ id: string; name: string; email?: string } | null>(null);
+  const [banReasonInput, setBanReasonInput] = useState("Violation of discussion board standards & spamming");
   const [activeTab, setActiveTab] = useState<"all" | "polls" | "announcements" | "general" | "theology" | "prayer-requests" | "mystagogy">("all");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+
+  const getLiturgicalTheme = (season: string = "lent") => {
+    switch (season) {
+      case "ordinary":
+        return {
+          name: "Ordinary Time",
+          border: "border-2 border-emerald-600/80 dark:border-emerald-500/80",
+          pinnedBadge: "bg-[#1E592F] text-white",
+          categoryBadge: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+          votedOption: "bg-emerald-100/80 dark:bg-emerald-950/70 border-emerald-500 text-emerald-950 dark:text-emerald-100 font-bold",
+          progressOverlay: "bg-emerald-500/20 dark:bg-emerald-500/30",
+          unvotedOption: "bg-zinc-50 dark:bg-zinc-800/80 border-zinc-200 dark:border-zinc-750 text-zinc-800 dark:text-zinc-200 hover:border-emerald-400 dark:hover:border-emerald-600",
+          accentText: "text-emerald-700 dark:text-emerald-400",
+          iconColor: "text-emerald-600 dark:text-emerald-400",
+          buttonText: "text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+        };
+      case "easter":
+        return {
+          name: "Eastertide",
+          border: "border-2 border-amber-500/80 dark:border-amber-400/80",
+          pinnedBadge: "bg-amber-500 text-zinc-950 font-bold",
+          categoryBadge: "bg-amber-50 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+          votedOption: "bg-amber-100/80 dark:bg-amber-950/70 border-amber-500 text-amber-950 dark:text-amber-100 font-bold",
+          progressOverlay: "bg-amber-500/20 dark:bg-amber-500/30",
+          unvotedOption: "bg-zinc-50 dark:bg-zinc-800/80 border-zinc-200 dark:border-zinc-750 text-zinc-800 dark:text-zinc-200 hover:border-amber-400 dark:hover:border-amber-600",
+          accentText: "text-amber-700 dark:text-amber-400",
+          iconColor: "text-amber-600 dark:text-amber-400",
+          buttonText: "text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+        };
+      case "pentecost":
+        return {
+          name: "Pentecost",
+          border: "border-2 border-red-600/80 dark:border-red-500/80",
+          pinnedBadge: "bg-[#A30000] text-white",
+          categoryBadge: "bg-red-50 text-red-800 dark:bg-red-950/60 dark:text-red-300 border-red-200 dark:border-red-800",
+          votedOption: "bg-red-100/80 dark:bg-red-950/70 border-red-500 text-red-950 dark:text-red-100 font-bold",
+          progressOverlay: "bg-red-500/20 dark:bg-red-500/30",
+          unvotedOption: "bg-zinc-50 dark:bg-zinc-800/80 border-zinc-200 dark:border-zinc-750 text-zinc-800 dark:text-zinc-200 hover:border-red-400 dark:hover:border-red-600",
+          accentText: "text-red-700 dark:text-red-400",
+          iconColor: "text-red-600 dark:text-red-400",
+          buttonText: "text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
+        };
+      case "lent":
+      default:
+        return {
+          name: "Lent / Advent",
+          border: "border-2 border-purple-500/80 dark:border-purple-600/80",
+          pinnedBadge: "bg-[#5D3F8A] text-white",
+          categoryBadge: "bg-purple-50 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+          votedOption: "bg-purple-100/80 dark:bg-purple-950/70 border-purple-500 text-purple-950 dark:text-purple-100 font-bold",
+          progressOverlay: "bg-purple-500/20 dark:bg-purple-500/30",
+          unvotedOption: "bg-zinc-50 dark:bg-zinc-800/80 border-zinc-200 dark:border-zinc-750 text-zinc-800 dark:text-zinc-200 hover:border-purple-400 dark:hover:border-purple-600",
+          accentText: "text-purple-700 dark:text-purple-400",
+          iconColor: "text-purple-600 dark:text-purple-400",
+          buttonText: "text-purple-700 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-200"
+        };
+    }
+  };
   const [newPostTitle, setNewPostTitle] = useState("");
   const [newPostContent, setNewPostContent] = useState("");
   const [newPostCategory, setNewPostCategory] = useState<"general" | "theology" | "prayer-requests" | "mystagogy">("general");
   const [isCreatingPost, setIsCreatingPost] = useState(false);
   const [commentInput, setCommentInput] = useState("");
   const [shareSuccess, setShareSuccess] = useState<string | null>(null);
+  const [isSpacesOpen, setIsSpacesOpen] = useState(false);
 
   // Editing Post States
   const [isEditingPost, setIsEditingPost] = useState(false);
@@ -39,6 +122,9 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptionsInputs, setPollOptionsInputs] = useState<string[]>(["", ""]);
   const [pollExpiresAt, setPollExpiresAt] = useState("");
+  const [pollCategory, setPollCategory] = useState<"session-topics" | "event-scheduling" | "general-feedback" | "spiritual-reflection">("session-topics");
+  const [pollIsPinned, setPollIsPinned] = useState(true);
+  const [selectedPollSubFilter, setSelectedPollSubFilter] = useState<"all" | "session-topics" | "event-scheduling" | "pinned">("all");
 
   const categories = [
     { id: "all", label: "All Spaces" },
@@ -161,14 +247,66 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
       });
   };
 
+  const executeBanUser = (targetUserId: string, targetUserEmail?: string, targetUserName?: string) => {
+    if (!setConfig || !config) return;
+
+    const currentBannedIds = config.bannedUserIds || [];
+    const currentBannedEmails = config.bannedUserEmails || [];
+
+    const updatedBannedIds = currentBannedIds.includes(targetUserId)
+      ? currentBannedIds
+      : [...currentBannedIds, targetUserId];
+
+    const updatedBannedEmails = targetUserEmail && !currentBannedEmails.includes(targetUserEmail)
+      ? [...currentBannedEmails, targetUserEmail]
+      : currentBannedEmails;
+
+    const updatedConfig: AppConfig = {
+      ...config,
+      bannedUserIds: updatedBannedIds,
+      bannedUserEmails: updatedBannedEmails
+    };
+
+    setConfig(updatedConfig);
+    localStorage.setItem("ocia_app_config", JSON.stringify(updatedConfig));
+
+    if (setAllUsers && allUsers.length > 0) {
+      const updatedUsers = allUsers.map(u => u.id === targetUserId || u.email === targetUserEmail ? {
+        ...u,
+        isBanned: true,
+        banReason: banReasonInput,
+        bannedAt: new Date().toISOString(),
+        bannedBy: user.name
+      } : u);
+      setAllUsers(updatedUsers);
+    }
+
+    setBanningUserModal(null);
+    alert(`Account for ${targetUserName || targetUserId} has been banned and locked by Super Admin.`);
+  };
+
   const handleCreatePost = (e: React.FormEvent) => {
     e.preventDefault();
+    setModerationError(null);
+
+    if (banStatus.isBanned) {
+      setModerationError(`Your account is suspended. Reason: ${banStatus.reason}`);
+      return;
+    }
+
     if (!newPostTitle.trim() || !newPostContent.trim()) return;
+
+    // Content moderation check
+    const modResult = checkContentModeration(newPostContent, newPostTitle, config);
+    if (!modResult.allowed) {
+      setModerationError(modResult.reason || "Submission blocked due to prohibited terms.");
+      return;
+    }
 
     const newPost: Post = {
       id: "pst-" + Math.random().toString(36).substring(2, 9),
-      title: newPostTitle,
-      content: newPostContent,
+      title: modResult.cleanTitle || newPostTitle,
+      content: modResult.cleanText || newPostContent,
       category: newPostCategory,
       authorId: user.id,
       authorName: user.name,
@@ -177,7 +315,10 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
       likes: [],
       comments: [],
       timestamp: new Date().toISOString(),
-      attachments: newPostAttachments
+      attachments: newPostAttachments,
+      isFlagged: modResult.isFlagged,
+      flagReason: modResult.reason,
+      flaggedWords: modResult.flaggedWords
     };
 
     setPosts(prev => [newPost, ...prev]);
@@ -190,16 +331,32 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
+    setModerationError(null);
+
+    if (banStatus.isBanned) {
+      setModerationError(`Your account is suspended. Reason: ${banStatus.reason}`);
+      return;
+    }
+
     if (!commentInput.trim() || !selectedPost) return;
+
+    // Content moderation check
+    const modResult = checkContentModeration(commentInput, undefined, config);
+    if (!modResult.allowed) {
+      setModerationError(modResult.reason || "Comment blocked due to prohibited terms.");
+      return;
+    }
 
     const newComment: Comment = {
       id: "cmt-" + Math.random().toString(36).substring(2, 9),
       postId: selectedPost.id,
-      content: commentInput,
+      content: modResult.cleanText || commentInput,
       authorId: user.id,
       authorName: user.name,
       authorAvatar: user.avatar,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isFlagged: modResult.isFlagged,
+      flagReason: modResult.reason
     };
 
     const updatedPost = {
@@ -248,6 +405,64 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
 
   const isLeader = ["OCIA Director/Coordinator", "leader", "parish leader", "priest", "deacon", "bishop", "catechist"].includes(user.role);
 
+  const applyPollPreset = (presetType: "event-scheduling" | "session-topics" | "spiritual-reflection") => {
+    if (presetType === "event-scheduling") {
+      setPollQuestion("📅 Session Scheduling: Which day/time works best for our upcoming Parish Retreat & Practice Workshop?");
+      setPollOptionsInputs([
+        "Tuesday Evening (6:30 PM - 8:00 PM)",
+        "Thursday Evening (7:00 PM - 8:30 PM)",
+        "Saturday Morning (10:00 AM - 11:30 AM)"
+      ]);
+      setPollCategory("event-scheduling");
+      setPollIsPinned(true);
+    } else if (presetType === "session-topics") {
+      setPollQuestion("📚 Session Topics: Which catechetical topic should we dedicate an extra Q&A breakout session to?");
+      setPollOptionsInputs([
+        "The Sacraments of Initiation & Mystagogy",
+        "Catholic Moral Teaching & Social Justice",
+        "Structure & Biblical Roots of the Holy Mass",
+        "Understanding Sacred Tradition & Scripture"
+      ]);
+      setPollCategory("session-topics");
+      setPollIsPinned(true);
+    } else {
+      setPollQuestion("🕊️ Cohort Reflection: What area of spiritual growth is most on your heart right now?");
+      setPollOptionsInputs([
+        "Establishing a daily habit of prayer & scripture",
+        "Building community with fellow catechumens",
+        "Intellectual understanding of dogma & Church history",
+        "Discerning lay ministry & Christian service"
+      ]);
+      setPollCategory("spiritual-reflection");
+      setPollIsPinned(false);
+    }
+  };
+
+  const getPollCategoryBadge = (cat?: string) => {
+    switch (cat) {
+      case "event-scheduling":
+        return { label: "📅 Event Scheduling", color: "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200/60 dark:border-blue-800/50" };
+      case "session-topics":
+        return { label: "📚 Session Topics", color: "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200/60 dark:border-amber-800/50" };
+      case "spiritual-reflection":
+        return { label: "🕊️ Spiritual Reflection", color: "bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200/60 dark:border-purple-800/50" };
+      case "general-feedback":
+        return { label: "💬 Cohort Feedback", color: "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200/60 dark:border-emerald-800/50" };
+      default:
+        return { label: "📊 Cohort Poll", color: "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700" };
+    }
+  };
+
+  const handleTogglePinPoll = (pollId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setPolls(polls.map(p => {
+      if (p.id === pollId) {
+        return { ...p, isPinned: !p.isPinned };
+      }
+      return p;
+    }));
+  };
+
   const handleCreatePoll = (e: React.FormEvent) => {
     e.preventDefault();
     if (!pollQuestion.trim()) return;
@@ -268,13 +483,17 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
       authorRole: user.role,
       authorAvatar: user.avatar,
       timestamp: new Date().toISOString(),
-      expiresAt: pollExpiresAt ? new Date(pollExpiresAt).toISOString() : undefined
+      expiresAt: pollExpiresAt ? new Date(pollExpiresAt).toISOString() : undefined,
+      isPinned: pollIsPinned,
+      category: pollCategory
     };
 
     setPolls([newPoll, ...polls]);
     setPollQuestion("");
     setPollOptionsInputs(["", ""]);
     setPollExpiresAt("");
+    setPollIsPinned(true);
+    setPollCategory("session-topics");
     setIsCreatingPoll(false);
     addPoints(25); // Award points for fostering cohort dialogue!
   };
@@ -313,11 +532,140 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
   const filteredPosts = posts.filter(p => activeTab === "all" || p.category === activeTab);
 
   return (
-    <div id="discussion-board-container" className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-fadeIn">
+    <div id="discussion-board-container" className="space-y-4 animate-fadeIn">
+      {/* Super Admin Banned User Notice */}
+      {banStatus.isBanned && (
+        <div className="bg-red-500/10 dark:bg-red-950/50 border-2 border-red-500 text-red-700 dark:text-red-300 p-4 rounded-2xl flex items-start gap-3 shadow-md">
+          <Ban className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <h4 className="font-bold text-sm uppercase tracking-wide flex items-center gap-2">
+              <span>Account Suspended / Banned</span>
+              <span className="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded-full font-mono">Restricted</span>
+            </h4>
+            <p className="text-xs mt-1 leading-relaxed">
+              {banStatus.reason || "Your account has been restricted by Super Admin authority due to spam or community guideline violations."}
+            </p>
+            <p className="text-[11px] text-zinc-500 mt-1 italic">
+              Notice: You have read-only access to community discussions. Creating posts, adding comments, or voting in polls is currently disabled.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Moderation Warning / Blocked Alert Banner */}
+      {moderationError && (
+        <div className="bg-amber-500/10 dark:bg-amber-950/50 border border-amber-500 text-amber-800 dark:text-amber-200 p-4 rounded-xl flex items-start justify-between gap-3 animate-fadeIn">
+          <div className="flex items-start space-x-2 min-w-0">
+            <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <h5 className="font-bold text-xs uppercase tracking-wide">Content Policy Alert</h5>
+              <p className="text-xs mt-0.5 leading-relaxed">{moderationError}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setModerationError(null)}
+            className="text-amber-700 hover:text-amber-900 dark:text-amber-300 p-1 hover:bg-amber-500/20 rounded-lg cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Ban User Modal for Super Admin */}
+      {banningUserModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border-2 border-red-500/40 w-full max-w-md rounded-2xl p-6 shadow-2xl relative animate-scaleIn space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-red-100 dark:bg-red-950/60 text-red-600 rounded-lg flex items-center justify-center">
+                  <Ban className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">Ban & Lock Account</h3>
+                  <p className="text-[10px] text-zinc-400">Super Admin Security Override</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setBanningUserModal(null)}
+                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="bg-zinc-50 dark:bg-zinc-800/60 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700">
+                <p className="font-bold text-zinc-900 dark:text-zinc-100">{banningUserModal.name}</p>
+                <p className="text-[11px] text-zinc-500 font-mono">{banningUserModal.email || `ID: ${banningUserModal.id}`}</p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-400 uppercase mb-1">Reason for Ban / Lock</label>
+                <select
+                  value={banReasonInput}
+                  onChange={(e) => setBanReasonInput(e.target.value)}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg p-2 text-xs font-bold"
+                >
+                  <option value="Repeated spam posting & commercial links">Repeated spam posting & commercial links</option>
+                  <option value="Prohibited or offensive language in discussions">Prohibited or offensive language in discussions</option>
+                  <option value="Impersonation or unauthorized account activity">Impersonation or unauthorized account activity</option>
+                  <option value="Violation of parish community standards">Violation of parish community standards</option>
+                  <option value="Custom Super Admin Security Ban">Custom Super Admin Security Ban</option>
+                </select>
+              </div>
+
+              <p className="text-[11px] text-red-500 dark:text-red-400 leading-normal">
+                ⚠️ Warning: This action will restrict this user from posting discussions, replying with comments, or voting across all parish spaces.
+              </p>
+
+              <div className="flex items-center justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setBanningUserModal(null)}
+                  className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-bold rounded-lg cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeBanUser(banningUserModal.id, banningUserModal.email, banningUserModal.name)}
+                  className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Ban className="w-3.5 h-3.5" /> Confirm Ban User
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
       {/* Categories Sidebar */}
-      <div className="lg:col-span-1 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-xs h-fit">
-        <h3 className="font-serif font-bold text-zinc-900 dark:text-zinc-100 px-3 mb-3 text-base">Community Spaces</h3>
-        <div className="space-y-1">
+      <div className="lg:col-span-1 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 sm:p-4 shadow-xs h-fit">
+        {/* Header / Mobile Toggle */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setIsSpacesOpen(!isSpacesOpen)}
+            className="flex items-center justify-between w-full lg:w-auto text-left cursor-pointer lg:cursor-default"
+            aria-label="Toggle Community Spaces Menu"
+          >
+            <div className="flex items-center space-x-2">
+              <h3 className="font-serif font-bold text-zinc-900 dark:text-zinc-100 text-sm sm:text-base">
+                Community Spaces
+              </h3>
+              <span className="lg:hidden text-[11px] font-semibold px-2 py-0.5 rounded-full bg-brand-light dark:bg-brand/15 text-brand">
+                {categories.find(c => c.id === activeTab)?.label}
+              </span>
+            </div>
+            
+            <div className="lg:hidden p-1 rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">
+              {isSpacesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </div>
+          </button>
+        </div>
+
+        {/* Collapsible Content on Mobile/Tablet, Always Visible on Desktop */}
+        <div className={`mt-3 space-y-1 ${isSpacesOpen ? "block" : "hidden lg:block"}`}>
           {categories.map(cat => (
             <button
               key={cat.id}
@@ -326,47 +674,50 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
                 setSelectedPost(null);
                 setIsCreatingPost(false);
                 setIsCreatingPoll(false);
+                setIsSpacesOpen(false);
               }}
               className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition duration-200 text-left cursor-pointer ${
                 activeTab === cat.id
-                  ? "bg-brand-light dark:bg-brand/15 text-brand"
+                  ? "bg-brand-light dark:bg-brand/15 text-brand font-bold"
                   : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-zinc-900 dark:hover:text-zinc-100"
               }`}
             >
               <span>{cat.label}</span>
-              <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full text-zinc-500">
+              <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full text-zinc-500 font-bold">
                 {cat.id === "all" ? posts.length : cat.id === "polls" ? polls.length : posts.filter(p => p.category === cat.id).length}
               </span>
             </button>
           ))}
-        </div>
-        
-        {activeTab === "polls" ? (
-          isLeader && (
+
+          {activeTab === "polls" ? (
+            isLeader && (
+              <button
+                onClick={() => {
+                  setIsCreatingPoll(true);
+                  setIsCreatingPost(false);
+                  setIsSpacesOpen(false);
+                }}
+                className="w-full mt-3 bg-brand hover:bg-brand-hover text-white py-2.5 px-4 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 shadow-xs cursor-pointer transition duration-200"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create New Poll</span>
+              </button>
+            )
+          ) : (
             <button
               onClick={() => {
-                setIsCreatingPoll(true);
-                setIsCreatingPost(false);
+                setIsCreatingPost(true);
+                setSelectedPost(null);
+                setIsCreatingPoll(false);
+                setIsSpacesOpen(false);
               }}
-              className="w-full mt-4 bg-brand hover:bg-brand-hover text-white py-2.5 px-4 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 shadow-xs cursor-pointer transition duration-200"
+              className="w-full mt-3 bg-brand hover:bg-brand-hover text-white py-2.5 px-4 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 shadow-xs cursor-pointer transition duration-200"
             >
               <Plus className="w-4 h-4" />
-              <span>Create New Poll</span>
+              <span>New Discussion</span>
             </button>
-          )
-        ) : (
-          <button
-            onClick={() => {
-              setIsCreatingPost(true);
-              setSelectedPost(null);
-              setIsCreatingPoll(false);
-            }}
-            className="w-full mt-4 bg-brand hover:bg-brand-hover text-white py-2.5 px-4 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 shadow-xs cursor-pointer transition duration-200"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Discussion</span>
-          </button>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Main Board Area */}
@@ -385,14 +736,62 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
               <ArrowLeft className="w-4 h-4" />
               <span>Back to Polls</span>
             </button>
-            <h3 className="font-serif font-bold text-xl text-zinc-900 dark:text-zinc-100 mb-2">Create Cohort Poll</h3>
-            <p className="text-xs text-zinc-500 mb-6">Ask a doctrinal, liturgical, or spiritual reflection question to spark discussion in your cohort.</p>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-serif font-bold text-xl text-zinc-900 dark:text-zinc-100">Create Cohort Poll</h3>
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-brand-light dark:bg-brand/20 text-brand px-2.5 py-1 rounded-full border border-brand/20">
+                Director Tool
+              </span>
+            </div>
+            <p className="text-xs text-zinc-500 mb-5">Create interactive feedback polls for scheduling parish events, deciding session topics, or reflecting together.</p>
+
+            {/* Quick Presets Bar */}
+            <div className="p-3 bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-750 rounded-xl mb-5">
+              <span className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-2 font-mono">⚡ Quick Director Templates:</span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => applyPollPreset("event-scheduling")}
+                  className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-bold transition cursor-pointer flex items-center space-x-1"
+                >
+                  <span>📅 Schedule Parish Event</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPollPreset("session-topics")}
+                  className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg text-xs font-bold transition cursor-pointer flex items-center space-x-1"
+                >
+                  <span>📚 Session Breakout Topic</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPollPreset("spiritual-reflection")}
+                  className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-lg text-xs font-bold transition cursor-pointer flex items-center space-x-1"
+                >
+                  <span>🕊️ Spiritual Reflection</span>
+                </button>
+              </div>
+            </div>
+
             <form onSubmit={handleCreatePoll} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">Poll Category</label>
+                <select
+                  value={pollCategory}
+                  onChange={(e) => setPollCategory(e.target.value as any)}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg py-2.5 px-4 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-brand"
+                >
+                  <option value="event-scheduling">📅 Event Scheduling & Parish Dates</option>
+                  <option value="session-topics">📚 Session Topics & Catechesis Feedback</option>
+                  <option value="spiritual-reflection">🕊️ Spiritual Reflection & Discernment</option>
+                  <option value="general-feedback">💬 General Cohort Feedback</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">Poll Question</label>
                 <input
                   type="text"
-                  placeholder="e.g. Which sacrament speaks to your heart the most right now?"
+                  placeholder="e.g. Which date works best for our upcoming Parish Retreat?"
                   value={pollQuestion}
                   onChange={e => setPollQuestion(e.target.value)}
                   className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg py-2.5 px-4 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-brand"
@@ -434,7 +833,7 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
                   ))}
                 </div>
 
-                {pollOptionsInputs.length < 6 && (
+                {pollOptionsInputs.length < 8 && (
                   <button
                     type="button"
                     onClick={() => setPollOptionsInputs([...pollOptionsInputs, ""])}
@@ -446,15 +845,32 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
                 )}
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">Expiry Date & Time (Optional)</label>
-                <input
-                  type="datetime-local"
-                  value={pollExpiresAt}
-                  onChange={e => setPollExpiresAt(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg py-2 px-3 text-xs text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-brand"
-                />
-                <p className="text-[10px] text-zinc-400 mt-1">Leave empty if the poll should run indefinitely with no expiration date.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">Expiry Date & Time (Optional)</label>
+                  <input
+                    type="datetime-local"
+                    value={pollExpiresAt}
+                    onChange={e => setPollExpiresAt(e.target.value)}
+                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg py-2 px-3 text-xs text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                  <p className="text-[10px] text-zinc-400 mt-1">Leave empty for an indefinite poll.</p>
+                </div>
+
+                <div className="flex items-center space-x-2.5 pt-4">
+                  <label className="flex items-center space-x-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={pollIsPinned}
+                      onChange={(e) => setPollIsPinned(e.target.checked)}
+                      className="w-4 h-4 rounded text-brand focus:ring-brand accent-amber-600 cursor-pointer"
+                    />
+                    <span className="flex items-center space-x-1">
+                      <Pin className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                      <span>Pin Poll to Top of Board</span>
+                    </span>
+                  </label>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4 border-t border-zinc-100 dark:border-zinc-800/60">
@@ -473,9 +889,10 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
                 <button
                   type="submit"
                   disabled={pollOptionsInputs.filter(Boolean).length < 2}
-                  className="px-5 py-2 bg-brand hover:bg-brand-hover disabled:bg-zinc-300 disabled:cursor-not-allowed text-white rounded-lg text-sm font-semibold shadow-xs transition cursor-pointer"
+                  className="px-5 py-2 bg-brand hover:bg-brand-hover disabled:bg-zinc-300 disabled:cursor-not-allowed text-white rounded-lg text-sm font-semibold shadow-xs transition cursor-pointer flex items-center space-x-1.5"
                 >
-                  Create & Publish
+                  <BarChart2 className="w-4 h-4" />
+                  <span>Publish Poll</span>
                 </button>
               </div>
             </form>
@@ -925,45 +1342,152 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
             </form>
           </div>
         ) : activeTab === "polls" ? (
-          <div className="space-y-4">
-            {polls.length === 0 ? (
-              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center shadow-xs">
-                <BarChart2 className="w-10 h-10 text-zinc-300 mx-auto mb-2" />
-                <p className="text-zinc-500 text-sm">No active polls in the cohort yet.</p>
-                {isLeader && (
-                  <button
-                    onClick={() => setIsCreatingPoll(true)}
-                    className="mt-3 text-xs text-brand font-bold hover:underline cursor-pointer"
-                  >
-                    Create the first poll!
-                  </button>
-                )}
+          <div className="space-y-5">
+            {/* Poll Sub-Filter Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/80 dark:border-zinc-800 shadow-2xs">
+              <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
+                <button
+                  onClick={() => setSelectedPollSubFilter("all")}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    selectedPollSubFilter === "all"
+                      ? "bg-brand text-white shadow-2xs font-bold"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                  }`}
+                >
+                  All Polls ({polls.length})
+                </button>
+                <button
+                  onClick={() => setSelectedPollSubFilter("event-scheduling")}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    selectedPollSubFilter === "event-scheduling"
+                      ? "bg-blue-600 text-white shadow-2xs font-bold"
+                      : "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                  }`}
+                >
+                  📅 Event Scheduling ({polls.filter(p => p.category === "event-scheduling").length})
+                </button>
+                <button
+                  onClick={() => setSelectedPollSubFilter("session-topics")}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    selectedPollSubFilter === "session-topics"
+                      ? "bg-amber-600 text-white shadow-2xs font-bold"
+                      : "bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                  }`}
+                >
+                  📚 Session Topics ({polls.filter(p => p.category === "session-topics").length})
+                </button>
+                <button
+                  onClick={() => setSelectedPollSubFilter("pinned")}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center space-x-1 ${
+                    selectedPollSubFilter === "pinned"
+                      ? "bg-amber-500 text-white shadow-2xs font-bold"
+                      : "bg-amber-100/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-900/60"
+                  }`}
+                >
+                  <Pin className="w-3 h-3 fill-current" />
+                  <span>Pinned ({polls.filter(p => p.isPinned).length})</span>
+                </button>
               </div>
-            ) : (
-              polls.map(poll => {
+
+              {isLeader && (
+                <button
+                  onClick={() => setIsCreatingPoll(true)}
+                  className="px-3 py-1.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-bold flex items-center space-x-1 transition cursor-pointer shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create Poll</span>
+                </button>
+              )}
+            </div>
+
+            {(() => {
+              const sortedPolls = [...polls].sort((a, b) => {
+                if (a.isPinned && !b.isPinned) return -1;
+                if (!a.isPinned && b.isPinned) return 1;
+                return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+              });
+
+              const filteredPolls = sortedPolls.filter(p => {
+                if (selectedPollSubFilter === "pinned") return p.isPinned;
+                if (selectedPollSubFilter === "all") return true;
+                return p.category === selectedPollSubFilter;
+              });
+
+              if (filteredPolls.length === 0) {
+                return (
+                  <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center shadow-xs">
+                    <BarChart2 className="w-10 h-10 text-zinc-300 mx-auto mb-2" />
+                    <p className="text-zinc-500 text-sm">No polls found in this filter.</p>
+                    {isLeader && (
+                      <button
+                        onClick={() => setIsCreatingPoll(true)}
+                        className="mt-3 text-xs text-brand font-bold hover:underline cursor-pointer"
+                      >
+                        Create a poll!
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
+              return filteredPolls.map(poll => {
                 const isExpired = poll.expiresAt ? new Date(poll.expiresAt).getTime() < Date.now() : false;
                 const hasVoted = poll.options.some(opt => opt.votes.includes(user.id));
                 const showResults = hasVoted || isExpired;
                 const myVoteOptionId = poll.options.find(opt => opt.votes.includes(user.id))?.id;
                 const totalVotes = poll.options.reduce((sum, opt) => sum + opt.votes.length, 0);
+                const badge = getPollCategoryBadge(poll.category);
+                const theme = getLiturgicalTheme(liturgicalSeason);
 
                 return (
                   <div
                     key={poll.id}
-                    className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800 p-5 shadow-xs relative group"
+                    className={`bg-white dark:bg-zinc-900 rounded-2xl border p-5 shadow-xs relative group transition-all duration-200 ${
+                      poll.isPinned 
+                        ? theme.border
+                        : "border-zinc-200/60 dark:border-zinc-800"
+                    }`}
                   >
-                    {/* Delete button (only for poll author or leader) */}
-                    {(user.id === poll.authorId || isLeader) && (
-                      <button
-                        onClick={() => handleDeletePoll(poll.id)}
-                        className="absolute top-4 right-4 p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition cursor-pointer"
-                        title="Delete Poll"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    {/* Top Right Action Buttons (Pin Toggle & Delete) */}
+                    <div className="absolute top-4 right-4 flex items-center space-x-1 z-10">
+                      {isLeader && (
+                        <button
+                          onClick={(e) => handleTogglePinPoll(poll.id, e)}
+                          className={`p-1.5 rounded-lg transition cursor-pointer ${
+                            poll.isPinned
+                              ? `${theme.pinnedBadge} font-bold`
+                              : "text-zinc-400 hover:text-brand hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          }`}
+                          title={poll.isPinned ? "Unpin poll" : "Pin poll to top of discussion board"}
+                        >
+                          <Pin className="w-3.5 h-3.5 fill-current" />
+                        </button>
+                      )}
 
-                    {/* Header Author Info */}
+                      {(user.id === poll.authorId || isLeader) && (
+                        <button
+                          onClick={() => handleDeletePoll(poll.id)}
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition cursor-pointer"
+                          title="Delete Poll"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Header Badges */}
+                    <div className="flex items-center gap-2 mb-3.5 pr-20">
+                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${badge.color}`}>
+                        {badge.label}
+                      </span>
+                      {poll.isPinned && (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${theme.pinnedBadge}`} title="Pinned Poll">
+                          <Pin className="w-3 h-3 fill-current" />
+                          <span>Pinned</span>
+                        </span>
+                      )}
+                    </div>
+
                     <div className="flex items-center space-x-2.5 mb-3">
                       <img
                         src={poll.authorAvatar}
@@ -1086,11 +1610,89 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
                     )}
                   </div>
                 );
-              })
-            )}
+              });
+            })()}
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Featured Pinned Poll Card on Main Feed */}
+            {polls.filter(p => p.isPinned).length > 0 && (() => {
+              const pinnedPoll = polls.filter(p => p.isPinned)[0];
+              const totalVotesCount = pinnedPoll.options.reduce((sum, o) => sum + o.votes.length, 0);
+              const userVoted = pinnedPoll.options.some(o => o.votes.includes(user.id));
+              const categoryBadge = getPollCategoryBadge(pinnedPoll.category);
+              const theme = getLiturgicalTheme(liturgicalSeason);
+
+              return (
+                <div className={`bg-white dark:bg-zinc-900 rounded-2xl ${theme.border} p-6 shadow-xs space-y-4 transition-all text-zinc-900 dark:text-zinc-100`}>
+                  {/* Top Bar: Pin Icon, Category Badge, and Link to All Polls */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2.5">
+                      <span title="Pinned Poll" className={`flex items-center px-2 py-0.5 rounded text-xs font-bold gap-1 shadow-2xs ${theme.pinnedBadge}`}>
+                        <Pin className="w-3.5 h-3.5 fill-current shrink-0" />
+                        <span>Pinned</span>
+                      </span>
+                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${categoryBadge.color}`}>
+                        {categoryBadge.label}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => setActiveTab("polls")}
+                      className={`text-xs font-semibold ${theme.buttonText} flex items-center space-x-1.5 cursor-pointer transition`}
+                    >
+                      <span>All Polls ({polls.length})</span>
+                      <BarChart2 className={`w-3.5 h-3.5 ${theme.iconColor}`} />
+                    </button>
+                  </div>
+
+                  {/* Poll Question */}
+                  <h4 className="font-bold text-base sm:text-lg text-zinc-900 dark:text-zinc-100 leading-relaxed font-serif">
+                    {pinnedPoll.question}
+                  </h4>
+
+                  {/* Options List */}
+                  <div className="space-y-2.5">
+                    {pinnedPoll.options.map((opt) => {
+                      const hasVotedThis = opt.votes.includes(user.id);
+                      const pct = totalVotesCount > 0 ? Math.round((opt.votes.length / totalVotesCount) * 100) : 0;
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => handleVote(pinnedPoll.id, opt.id)}
+                          className={`w-full text-left px-4 py-3 rounded-xl text-xs sm:text-sm font-semibold border flex items-center justify-between transition cursor-pointer relative overflow-hidden ${
+                            hasVotedThis
+                              ? theme.votedOption
+                              : theme.unvotedOption
+                          }`}
+                        >
+                          {/* Visual progress bar overlay if voted */}
+                          {userVoted && (
+                            <div
+                              className={`absolute top-0 left-0 bottom-0 ${theme.progressOverlay} transition-all duration-300`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          )}
+
+                          <span className="truncate pr-4 z-10">{opt.text}</span>
+                          <span className={`text-xs font-mono font-bold shrink-0 z-10 ${hasVotedThis ? theme.accentText : "text-zinc-500 dark:text-zinc-400"}`}>
+                            {userVoted ? `${pct}%` : `${opt.votes.length}`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Poll Footer info */}
+                  <div className="pt-2.5 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                    <span>{totalVotesCount} {totalVotesCount === 1 ? 'vote' : 'votes'} total</span>
+                    <span className={`font-medium ${theme.accentText}`}>
+                      {userVoted ? "Your vote is recorded" : "Select an option to vote"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
             {/* Posts Grid List */}
             {filteredPosts.length === 0 ? (
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center shadow-xs">
@@ -1110,12 +1712,19 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
                   onClick={() => setSelectedPost(post)}
                   className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800 p-5 hover:border-brand/50 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer relative group"
                 >
-                  {post.isPinned && (
-                    <span className="absolute top-4 right-4 text-accent flex items-center space-x-1 text-[10px] font-bold bg-accent-light dark:bg-accent/15 px-2.5 py-0.5 rounded-full border border-accent/20">
-                      <Pin className="w-3 h-3 fill-accent mr-0.5" />
-                      Pinned
-                    </span>
-                  )}
+                  {/* Badges Bar (Pinned, Flagged) */}
+                  <div className="flex items-center gap-2 mb-2">
+                    {post.isPinned && (
+                      <span className="p-1 px-2 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/80 text-[10px] font-bold flex items-center gap-1">
+                        <Pin className="w-3 h-3 fill-amber-500 text-amber-500" /> Pinned
+                      </span>
+                    )}
+                    {post.isFlagged && (
+                      <span className="p-1 px-2 rounded-full bg-red-500/10 dark:bg-red-950/60 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 text-[10px] font-bold flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3 text-red-500" /> Flagged for Review ({post.flagReason || "Filtered Keyword"})
+                      </span>
+                    )}
+                  </div>
 
                   {/* Header Author Info */}
                   <div className="flex items-center space-x-2.5 mb-3">
@@ -1169,8 +1778,39 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
                       )}
                     </div>
 
-                    {/* Controls (Edit, Delete, Copy Link) */}
+                    {/* Controls (Edit, Delete, Copy Link, Ban Author, Clear Flag) */}
                     <div className="flex items-center space-x-2">
+                      {userIsSuperAdmin && post.isFlagged && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const updated = posts.map(p => p.id === post.id ? { ...p, isFlagged: false } : p);
+                            setPosts(updated);
+                            localStorage.setItem("ocia_posts", JSON.stringify(updated));
+                          }}
+                          title="Approve Post & Clear Flag"
+                          className="p-1 px-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md hover:bg-emerald-500/20 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <ShieldCheck className="w-3 h-3" /> Clear Flag
+                        </button>
+                      )}
+
+                      {userIsSuperAdmin && post.authorId !== user.id && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBanningUserModal({
+                              id: post.authorId,
+                              name: post.authorName
+                            });
+                          }}
+                          title="Super Admin: Ban Author"
+                          className="p-1 px-2 bg-red-500/10 text-red-600 dark:text-red-400 rounded-md hover:bg-red-500/20 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Ban className="w-3 h-3" /> Ban Author
+                        </button>
+                      )}
+
                       {post.authorId === user.id && (
                         <button
                           onClick={(e) => {
@@ -1219,6 +1859,7 @@ export default function DiscussionBoard({ user, posts, setPosts, polls, setPolls
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

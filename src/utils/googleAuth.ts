@@ -24,6 +24,11 @@ provider.addScope("https://www.googleapis.com/auth/classroom.announcements.reado
 provider.addScope("https://www.googleapis.com/auth/classroom.rosters.readonly");
 provider.addScope("https://www.googleapis.com/auth/classroom.topics.readonly");
 
+// Add Google Forms & Sheets scopes
+provider.addScope("https://www.googleapis.com/auth/forms.body");
+provider.addScope("https://www.googleapis.com/auth/forms.responses.readonly");
+provider.addScope("https://www.googleapis.com/auth/spreadsheets");
+
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
 

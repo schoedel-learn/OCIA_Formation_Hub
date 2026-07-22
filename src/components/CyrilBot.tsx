@@ -6,14 +6,16 @@ import { UserProfile } from "../types";
 interface CyrilBotProps {
   user: UserProfile;
   addPoints: (amount: number) => void;
+  greeting?: string;
+  instructions?: string;
 }
 
-export default function CyrilBot({ user, addPoints }: CyrilBotProps) {
+export default function CyrilBot({ user, addPoints, greeting, instructions }: CyrilBotProps) {
   const [messages, setMessages] = useState<any[]>([
     {
       id: "welcome",
       role: "model",
-      text: "Peace be with you, my beloved student! I am Cyril, Bishop of Jerusalem and catechist of your spiritual journey. Ask me any inquiry regarding Holy Scripture, the Sacred Liturgies, the Sacraments, or the path of the Order of Christian Initiation of Adults (OCIA). What questions weigh upon your heart?",
+      text: greeting || "Peace be with you, my beloved student! I am Cyril, Bishop of Jerusalem and catechist of your spiritual journey. Ask me any inquiry regarding Holy Scripture, the Sacred Liturgies, the Sacraments, or the path of the Order of Christian Initiation of Adults (OCIA). What questions weigh upon your heart?",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -53,6 +55,7 @@ export default function CyrilBot({ user, addPoints }: CyrilBotProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          instructions,
           messages: [...messages, userMsg].map((m) => ({
             role: m.role,
             text: m.text

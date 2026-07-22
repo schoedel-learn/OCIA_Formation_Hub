@@ -8,15 +8,16 @@ interface FormationsProps {
   user: UserProfile;
   completeLesson: (lessonId: string) => void;
   addPoints: (amount: number) => void;
+  allLessons?: Lesson[];
 }
 
-export default function Formations({ user, completeLesson, addPoints }: FormationsProps) {
+export default function Formations({ user, completeLesson, addPoints, allLessons }: FormationsProps) {
   const [customLessons, setCustomLessons] = useState<Lesson[]>(() => {
     const saved = localStorage.getItem("ocia_custom_lessons");
     return saved ? JSON.parse(saved) : [];
   });
 
-  const lessons = [...OCIA_LESSONS, ...customLessons];
+  const lessons = allLessons || [...OCIA_LESSONS, ...customLessons];
 
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<{ [key: number]: number }>({});

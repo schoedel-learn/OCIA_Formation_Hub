@@ -4,11 +4,12 @@ import {
   Camera, Mic, MicOff, Volume2, VolumeX, Maximize2, Flame, Eye, Zap, 
   AlertCircle, X, Check, Award, Play, Square, Loader2
 } from "lucide-react";
-import { UserProfile } from "../types";
+import { UserProfile, AppConfig } from "../types";
 
 interface LiveStreamHubProps {
   user: UserProfile;
   addPoints: (amount: number) => void;
+  config?: AppConfig;
 }
 
 interface StreamChannel {
@@ -103,9 +104,40 @@ const USER_AVATARS = [
   "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80"
 ];
 
-export default function LiveStreamHub({ user, addPoints }: LiveStreamHubProps) {
-  const [channels, setChannels] = useState<StreamChannel[]>(MOCK_CHANNELS);
-  const [selectedChannel, setSelectedChannel] = useState<StreamChannel>(MOCK_CHANNELS[0]);
+export default function LiveStreamHub({ user, addPoints, config }: LiveStreamHubProps) {
+  const [channels, setChannels] = useState<StreamChannel[]>(() => {
+    if (config?.isLiveStreamActive && config?.liveStreamTitle) {
+      const adminChannel: StreamChannel = {
+        id: "admin-stream-live",
+        streamerName: config.liveStreamSpeaker || "Parish Pastoral Team",
+        streamerAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80",
+        title: config.liveStreamTitle,
+        category: config.liveStreamCategory || "Liturgy",
+        viewerCount: 184,
+        isLive: true,
+        videoUrl: config.liveStreamUrl,
+        description: `Official parish stream for ${config.parishName || "our community"}. Join us in prayer and fellowship.`
+      };
+      return [adminChannel, ...MOCK_CHANNELS];
+    }
+    return MOCK_CHANNELS;
+  });
+  const [selectedChannel, setSelectedChannel] = useState<StreamChannel>(() => {
+    if (config?.isLiveStreamActive && config?.liveStreamTitle) {
+      return {
+        id: "admin-stream-live",
+        streamerName: config.liveStreamSpeaker || "Parish Pastoral Team",
+        streamerAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80",
+        title: config.liveStreamTitle,
+        category: config.liveStreamCategory || "Liturgy",
+        viewerCount: 184,
+        isLive: true,
+        videoUrl: config.liveStreamUrl,
+        description: `Official parish stream for ${config.parishName || "our community"}. Join us in prayer and fellowship.`
+      };
+    }
+    return MOCK_CHANNELS[0];
+  });
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isFollowed, setIsFollowed] = useState(false);

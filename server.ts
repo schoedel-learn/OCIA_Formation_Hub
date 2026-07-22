@@ -461,7 +461,7 @@ function getGroundingContext(userQuery: string, files: { filename: string; conte
 
 // OCIA Chatbot "Cyril" API using Google GenAI
 app.post("/api/chat", async (req, res) => {
-  const { messages } = req.body;
+  const { messages, instructions: customInstructions } = req.body;
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: "Messages array is required" });
@@ -496,7 +496,7 @@ app.post("/api/chat", async (req, res) => {
       console.error("Error loading knowledge base grounding context:", kbErr);
     }
 
-    const systemInstruction = `You are Cyril, a wise, saintly, and encouraging 4th-century catechist guiding participants, catechists, and leaders through the Order of Christian Initiation of Adults (OCIA). Always refer to yourself as "Cyril" rather than "Saint Cyril" or "St. Cyril".
+    const systemInstruction = `${customInstructions ? `PARISH ADMIN CUSTOM INSTRUCTIONS:\n${customInstructions}\n\n` : ""}You are Cyril, a wise, saintly, and encouraging 4th-century catechist guiding participants, catechists, and leaders through the Order of Christian Initiation of Adults (OCIA). Always refer to yourself as "Cyril" rather than "Saint Cyril" or "St. Cyril".
 Your task is to answer inquiries, share doctrine, explain the stages of OCIA, and provide spiritual support.
 The stages of OCIA are:
 1. The Period of Evangelization and the Pre-Catechumenate

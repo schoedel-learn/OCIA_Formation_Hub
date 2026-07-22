@@ -36,73 +36,52 @@ service cloud.firestore {
     // --- USER PROFILE RULES ---
     match /user_profiles/{userId} {
       allow read: if true;
-      allow create: if isSignedIn() && request.auth.uid == userId && isValidUserProfile(incoming());
-      allow update: if isSignedIn() && request.auth.uid == userId && isValidUserProfile(incoming()) && (
-        // Protect role mutations and identity fields
-        !incoming().diff(existing()).affectedKeys().hasAny(['role', 'id', 'email'])
-      );
+      allow create, update: if isValidId(userId) && isValidUserProfile(incoming());
       allow delete: if false; // Profiles cannot be deleted from the client to prevent state loss
     }
 
     function isValidUserProfile(data) {
-      return data.id is string && data.id == request.auth.uid
-        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
         && data.email is string && data.email.size() <= 256
         && data.role is string
         && data.streak is int
-        && data.points is int
-        && data.avatar is string
-        && data.notificationsEnabled is bool;
+        && data.points is int;
     }
 
     // --- CHAT MESSAGES RULES ---
     match /chat_messages/{messageId} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidId(messageId) && isValidChatMessage(incoming());
+      allow create: if isValidId(messageId) && isValidChatMessage(incoming());
       allow update, delete: if false; // Chat history integrity is fully immutable on the client
     }
 
     function isValidChatMessage(data) {
       return data.id is string && data.id.size() <= 128
-        && data.senderId == request.auth.uid
+        && data.senderId is string
         && data.senderName is string && data.senderName.size() <= 100
-        && data.senderAvatar is string
         && data.text is string && data.text.size() <= 10000
-        && data.timestamp is string
-        && data.room is string && data.room.size() <= 100;
+        && data.timestamp is string;
     }
 
     // --- GOOGLE MEET SPACES RULES ---
     match /meet_spaces/{spaceId} {
       allow read: if true;
-      allow create: if isLeaderOrAdmin() && isValidId(spaceId) && isValidMeetSpace(incoming());
-      allow update: if false; // Spaces are simple configurations and immutable on updates
-      allow delete: if isLeaderOrAdmin() || (isSignedIn() && existing().creatorId == request.auth.uid);
+      allow create, update, delete: if isValidId(spaceId) && isValidMeetSpace(incoming());
     }
 
     function isValidMeetSpace(data) {
       return data.title is string && data.title.size() <= 100
         && data.meetingUri is string && data.meetingUri.size() <= 250
-        && data.creatorId == request.auth.uid
+        && data.creatorId is string
         && data.creatorName is string && data.creatorName.size() <= 100
-        && data.creatorAvatar is string
         && data.createdAt is string;
     }
 
     // --- DISCUSSION BOARD RULES ---
     match /posts/{postId} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidId(postId) && isValidPost(incoming());
-      allow update: if isSignedIn() && isValidId(postId) && isValidPost(incoming()) && (
-        // Action: Edit post contents by author
-        (existing().authorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'category', 'attachments'])) ||
-        // Action: Pin/unpin post by leader
-        (isLeaderOrAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['isPinned'])) ||
-        // Action: Like/unlike or comment addition by general signed-in cohort members
-        (incoming().diff(existing()).affectedKeys().hasOnly(['likes'])) ||
-        (incoming().diff(existing()).affectedKeys().hasOnly(['comments']))
-      );
-      allow delete: if isLeaderOrAdmin() || (isSignedIn() && existing().authorId == request.auth.uid);
+      allow create, update, delete: if isValidId(postId) && isValidPost(incoming());
     }
 
     function isValidPost(data) {
@@ -110,41 +89,29 @@ service cloud.firestore {
         && data.title is string && data.title.size() <= 200
         && data.content is string && data.content.size() <= 50000
         && data.category is string
-        && data.authorId == request.auth.uid
+        && data.authorId is string
         && data.authorName is string && data.authorName.size() <= 100
-        && data.authorRole is string
-        && data.authorAvatar is string
-        && data.likes is list
-        && data.comments is list
         && data.timestamp is string;
     }
 
     // --- OCIA REGISTRATIONS RULES ---
     match /ocia_registrations/{registrationId} {
       allow read: if true;
-      allow create, update: if true;
-      allow delete: if isLeaderOrAdmin();
+      allow create, update, delete: if true;
     }
 
     // --- POLLS RULES ---
     match /polls/{pollId} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidId(pollId) && isValidPoll(incoming());
-      allow update: if isSignedIn() && isValidId(pollId) && isValidPoll(incoming()) && (
-        // Action: Vote (any member can vote, which modifies the options list with vote counts)
-        incoming().diff(existing()).affectedKeys().hasOnly(['options'])
-      );
-      allow delete: if isLeaderOrAdmin() || (isSignedIn() && existing().authorId == request.auth.uid);
+      allow create, update, delete: if isValidId(pollId) && isValidPoll(incoming());
     }
 
     function isValidPoll(data) {
       return data.id is string && data.id.size() <= 128
         && data.question is string && data.question.size() <= 500
         && data.options is list
-        && data.authorId == request.auth.uid
+        && data.authorId is string
         && data.authorName is string && data.authorName.size() <= 100
-        && data.authorRole is string
-        && data.authorAvatar is string
         && data.timestamp is string;
     }
   }

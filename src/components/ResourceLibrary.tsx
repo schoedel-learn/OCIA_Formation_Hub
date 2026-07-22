@@ -11,6 +11,8 @@ interface ResourceLibraryProps {
   user: UserProfile;
   toggleSaveResource: (resId: string) => void;
   addPoints: (amount: number) => void;
+  resources?: ResourceItem[];
+  setResources?: (resources: ResourceItem[]) => void;
 }
 
 // Dynamically load the Google API Client Library for the Picker
@@ -55,7 +57,7 @@ const loadPickerScript = (): Promise<void> => {
   });
 };
 
-export default function ResourceLibrary({ user, toggleSaveResource, addPoints }: ResourceLibraryProps) {
+export default function ResourceLibrary({ user, toggleSaveResource, addPoints, resources, setResources }: ResourceLibraryProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState<"all" | "liturgy" | "doctrine" | "scripture" | "prayer" | "catechism" | "drive">("all");
   const [downloads, setDownloads] = useState<{ [key: string]: number }>({});
@@ -203,9 +205,10 @@ export default function ResourceLibrary({ user, toggleSaveResource, addPoints }:
     }
   };
 
+  const baseResourcesList = resources || OCIA_RESOURCES;
   const combinedResources = [
     ...importedDocs,
-    ...OCIA_RESOURCES
+    ...baseResourcesList
   ];
 
   const filteredResources = combinedResources.filter(res => {
